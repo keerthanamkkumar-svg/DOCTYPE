@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Labs | Advanced Virtual Science Interface</title>
+    
+    <!-- Google Fonts: Space Grotesk for headers, Outfit for tech text -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Space+Grotesk:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #020617; /* Deep slate dark */
+            --primary-cyan: #00f3ff;
+            --primary-purple: #8b5cf6;
+            --primary-magenta: #d946ef;
+            --glass-bg: rgba(15, 23, 42, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-highlight: rgba(255, 255, 255, 0.15);
+            --danger-red: #ef4444;
+            --warning-yellow: #f59e0b;
+            --safe-green: #10b981;
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-body: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #f8fafc;
+            font-family: var(--font-body);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- 3D Background Container --- */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none; /* Let clicks pass through if needed, though we track mouse globally */
+        }
+
+        /* --- Ambient Overlay (Liquidy feel) --- */
+        .ambient-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, transparent 20%, var(--bg-color) 120%);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* --- UI Layer --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+        }
+
+        header {
+            padding: 24px 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(2,6,23,0.8) 0%, rgba(2,6,23,0) 100%);
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+        }
+
+        .brand {
+            font-family: var(--font-display);
+            font-size: 2.2rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, #fff 0%, var(--primary-cyan) 50%, var(--primary-purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 20px rgba(0, 243, 255, 0.3));
+        }
+
+        .brand i {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, var(--primary-cyan), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            border: 1px solid var(--primary-purple);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: rgba(139, 92, 246, 0.1);
+            color: #d8b4fe;
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-pulse {
+            width: 8px;
+            height: 8px;
+            background-color: var(--safe-green);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--safe-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+
+        /* Navigation Bar (Glassmorphism) */
+        .nav-dock {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            pointer-events: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4), inset 0 1px 0 var(--glass-highlight);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .nav-dock:hover {
+            background: rgba(15, 23, 42, 0.6);
+            border-color: rgba(255,255,255,0.15);
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            padding: 12px 20px;
+            border-radius: 16px;
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .nav-btn:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.05);
+            transform: translateY(-2px);
+        }
+        
+        .nav-btn:hover::before { opacity: 1; }
+
+        .nav-btn.active {
+            color: #fff;
+            background: rgba(139, 92, 246, 0.2);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+            border: 1px solid rgba(139, 92, 246, 0.4);
+        }
+
+        .viewport {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            pointer-events: none;
+            padding: 20px;
+        }
+
+        .module-card {
+            position: absolute;
+            width: 1000px;
+            max-width: 95%;
+            height: 600px;
+            max-height: 80vh;
+            background: var(--glass-bg);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 32px;
+            padding: 40px;
+            display: none;
+            opacity: 0;
+            transform: scale(0.95) translateY(20px);
+            pointer-events: auto;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 var(--glass-highlight);
+            overflow: hidden;
+        }
+
+        /* Liquidy animated highlight on cards */
+        .module-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent 60%);
+            animation: liquidHighlight 15s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes liquidHighlight {
+            0% { transform: rotate(0deg) translate(-5%, -5%); }
+            50% { transform: rotate(180deg) translate(5%, 5%); }
+            100% { transform: rotate(360deg) translate(-5%, -5%); }
+        }
+
+        .module-card.active {
+            display: flex;
+        }
+
+        .module-content-wrapper {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        .module-layout {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            gap: 40px;
+        }
+
+        .module-controls {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 24px;
+            border-right: 1px solid rgba(255,255,255,0.05);
+            padding-right: 40px;
+        }
+
+        .module-display {
+            flex: 2;
+            background: rgba(0,0,0,0.4);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: inset 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        h2 {
+            font-family: var(--font-display);
+            background: linear-gradient(90deg, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+            font-size: 2.2rem;
+            letter-spacing: -0.5px;
+        }
+
+        p {
+            font-size: 1rem;
+            color: #94a3b8;
+            line-height: 1.6;
+        }
+
+        .subtitle {
+            font-size: 0.85rem;
+            color: var(--primary-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        /* Custom Liquidy Slider */
+        .control-group {
+            background: rgba(255,255,255,0.03);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            overflow: hidden; /* For liquid fill effect */
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 0px; /* Hide default thumb */
+            height: 0px;
+            box-shadow: -400px 0 0 400px var(--primary-cyan); /* Fill effect before thumb */
+        }
+        
+        /* Modern generic action button */
+        .action-btn {
+            padding: 16px 28px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            font-family: var(--font-body);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+        }
+        
+        .action-btn:hover {
+            background: rgba(0, 243, 255, 0.15);
+            border-color: var(--primary-cyan);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .action-btn.secondary {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+        
+        .action-btn.secondary:hover {
+             background: rgba(139, 92, 246, 0.25);
+             border-color: var(--primary-purple);
+             box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+        }
+
+        .info-panel {
+            background: rgba(0,0,0,0.4);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.05);
+            margin-top: auto;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95rem;
+        }
+
+        .data-label { color: #64748b; }
+        .data-val { color: var(--primary-cyan); font-weight: bold; }
+
+        /* Hero/Landing */
+        #module-hero {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            backdrop-filter: none;
+            align-items: center;
+            justify-content: center;
+        }
+        #hero-content {
+            text-align: center;
+            max-width: 700px;
+            position: relative;
+        }
+        .hero-title {
+            font-size: 6rem;
+            margin-bottom: 10px;
+            line-height: 1;
+            font-family: var(--font-display);
+            background: linear-gradient(135deg, #fff 0%, var(--primary-cyan) 40%, var(--primary-purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.5));
+            letter-spacing: -3px;
+        }
+        .hero-subtitle {
+            font-size: 1.4rem;
+            color: #94a3b8;
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+
+        /* General Canvas for Simulations */
+        canvas.simulation-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Nuclear Specific */
+        #reactor-core {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at 50% 50%, #1e1b4b 0%, #000 100%);
+            position: relative;
+        }
+        #reactor-pool {
+            width: 160px;
+            height: 300px;
+            border-radius: 80px;
+            background: rgba(0, 243, 255, 0.05);
+            border: 2px solid rgba(0, 243, 255, 0.2);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding: 20px;
+            box-shadow: inset 0 0 50px rgba(0, 243, 255, 0.1);
+            overflow: hidden;
+        }
+        /* Cherenkov Radiation Glow */
+        #cherenkov-glow {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(0deg, rgba(0,243,255,0.4) 0%, transparent 100%);
+            transition: opacity 0.3s;
+            mix-blend-mode: screen;
+        }
+        #fuel-rod-container {
+            width: 40px;
+            height: 200px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            position: relative;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #fuel-rod {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, var(--safe-green) 0%, #047857 100%);
+            box-shadow: 0 0 30px var(--safe-green);
+            transition: height 0.3s, background 0.3s, box-shadow 0.3s;
+            border-radius: 20px;
+            position: absolute;
+            top: 0; /* Rod lowers from top */
+        }
+        .shake-intense { animation: shake 0.2s cubic-bezier(.36,.07,.19,.97) both infinite; }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        /* Overlay Text on Displays */
+        .display-overlay-text {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-family: var(--font-display);
+            color: rgba(255,255,255,0.5);
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Ambient 3D Liquid Background -->
+    <div id="canvas-container"></div>
+    <div class="ambient-overlay"></div>
+
+    <!-- UI Layer -->
+    <div id="ui-layer">
+        
+        <header>
+            <div class="brand"><i class="fa-solid fa-flask-vial"></i> PRO LABS</div>
+            <div class="status-badge">
+                <div class="status-pulse"></div>
+                SYSTEM ONLINE
+            </div>
+        </header>
+
+        <div class="viewport">
+            
+            <!-- LANDING PAGE -->
+            <div id="module-hero" class="module-card active">
+                <div class="module-content-wrapper" id="hero-content">
+                    <h1 class="hero-title">PRO LABS</h1>
+                    <p class="hero-subtitle">NEXT-GEN INTERACTIVE PHYSICS & CHEMISTRY ENGINE</p>
+                    <button class="action-btn" onclick="app.switchModule('optics')" style="margin: 0 auto; padding: 20px 40px; font-size: 1.1rem; border-radius: 30px;">
+                        INITIALIZE ENGINE <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- MODULE A: NUCLEAR -->
+            <div id="module-nuclear" class="module-card">
+                <div class="module-content-wrapper module-layout">
+                    <div class="module-controls">
+                        <div>
+                            <h2>FISSION REACTOR</h2>
+                            <p class="subtitle">THERMODYNAMIC SIMULATION</p>
+                            <p>Modulate the control rods to absorb neutrons and control the fission rate. Withdrawing rods increases energy output but risks a critical thermal event.</p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>Control Rod Insertion (Neutron Absorption)</label>
+                            <input type="range" id="rod-slider" min="0" max="100" value="100">
+                            <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.8rem; opacity:0.7;">
+                                <span style="color: var(--danger-red);">WITHDRAWN (CRITICAL)</span>
+                                <span style="color: var(--safe-green);">INSERTED (SAFE)</span>
+                            </div>
+                        </div>
+
+                        <div class="info-panel">
+                            <div class="data-row">
+                                <span class="data-label">REACTOR STATUS</span>
+                                <span class="data-val" id="nuc-status" style="color: var(--safe-green);">STABLE</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">CORE TEMP (T)</span>
+                                <span class="data-val"><span id="nuclear-temp">300</span> K</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">POWER OUTPUT (W)</span>
+                                <span class="data-val"><span id="nuclear-output">0</span> MW</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">COOLANT FLOW</span>
+                                <span class="data-val">NOMINAL</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="module-display">
+                        <div class="display-overlay-text">CAM-01 [CORE VIEW]</div>
+                        <div id="reactor-core">
+                            <div id="reactor-pool">
+                                <div id="cherenkov-glow"></div>
+                                <div id="fuel-rod-container">
+                                    <div id="fuel-rod"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODULE B: ORBITAL -->
+            <div id="module-orbital" class="module-card">
+                 <div class="module-content-wrapper module-layout">
+                    <div class="module-controls">
+                        <div>
+                            <h2>GRAVITY WELL</h2>
+                            <p class="subtitle">KEPLERIAN ORBIT DYNAMICS</p>
+                            <p>Observe the effects of mass on orbital velocity. According to Kepler's laws, a massive central body requires orbiting bodies to travel faster to maintain orbit.</p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>Central Star Mass (M)</label>
+                            <input type="range" id="mass-slider" min="10" max="100" value="30">
+                        </div>
+
+                        <div class="info-panel">
+                            <div class="data-row">
+                                <span class="data-label">STAR MASS</span>
+                                <span class="data-val"><span id="orb-mass">30</span> M☉</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">INNER ORBIT VELOCITY</span>
+                                <span class="data-val"><span id="orb-v1">1.2</span> km/s</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">OUTER ORBIT VELOCITY</span>
+                                <span class="data-val"><span id="orb-v2">0.8</span> km/s</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="module-display">
+                        <div class="display-overlay-text">TELEMETRY [N-BODY SIMULATION]</div>
+                        <canvas id="orbit-canvas" class="simulation-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODULE C: CHEMISTRY -->
+            <div id="module-chemistry" class="module-card">
+                <div class="module-content-wrapper module-layout">
+                    <div class="module-controls">
+                        <div>
+                            <h2>REACTION CHAMBER</h2>
+                            <p class="subtitle">EXOTHERMIC ALKALI REACTION</p>
+                            <p>Simulate the highly exothermic reaction between an alkali metal (Sodium) and Water. 2Na + 2H₂O → 2NaOH + H₂</p>
+                        </div>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <button id="btn-na" class="action-btn secondary"><i class="fa-solid fa-cube"></i> 1. INTRODUCE SODIUM (Na)</button>
+                            <button id="btn-h2o" class="action-btn"><i class="fa-solid fa-droplet"></i> 2. INJECT WATER (H₂O)</button>
+                        </div>
+
+                        <button onclick="app.resetChem()" class="action-btn" style="margin-top: auto; background: transparent; border-color: rgba(255,255,255,0.2);">
+                            <i class="fa-solid fa-rotate-right"></i> PURGE CHAMBER
+                        </button>
+                    </div>
+                    <div class="module-display" style="background: #000;">
+                        <div class="display-overlay-text" id="chem-status">CHAMBER: PURGED</div>
+                        <canvas id="chem-canvas" class="simulation-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODULE D: OPTICS (NEW) -->
+            <div id="module-optics" class="module-card">
+                <div class="module-content-wrapper module-layout">
+                    <div class="module-controls">
+                        <div>
+                            <h2>SPECTRAL OPTICS</h2>
+                            <p class="subtitle">PRISM DISPERSION SIMULATION</p>
+                            <p>Analyze how white light disperses into a spectrum when passing through a dispersive medium (glass prism) due to wavelength-dependent refractive indices (Snell's Law).</p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label>Prism Rotation (Angle of Incidence)</label>
+                            <input type="range" id="optics-slider" min="-30" max="30" value="0">
+                        </div>
+
+                        <div class="info-panel">
+                            <div class="data-row">
+                                <span class="data-label">MEDIUM REFRACTIVE INDEX (n)</span>
+                                <span class="data-val">1.52 (Crown Glass)</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">INCIDENT ANGLE (θ)</span>
+                                <span class="data-val"><span id="opt-angle">0</span>°</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="module-display" style="background: #020617;">
+                        <div class="display-overlay-text">SENSOR ARRAY [PHOTONICS]</div>
+                        <canvas id="optics-canvas" class="simulation-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODULE E: WAVES (NEW) -->
+            <div id="module-waves" class="module-card">
+                <div class="module-content-wrapper module-layout">
+                    <div class="module-controls">
+                        <div>
+                            <h2>WAVE DYNAMICS</h2>
+                            <p class="subtitle">INTERFERENCE PATTERNS</p>
+                            <p>Interact with the fluid surface to generate ripples. Observe constructive and destructive interference where wave crests and troughs intersect.</p>
+                            <p style="margin-top: 15px; color: var(--primary-cyan);"><i>Click on the display to generate wave sources.</i></p>
+                        </div>
+                        
+                        <button onclick="app.modules.waves.clear()" class="action-btn" style="margin-top: auto; background: transparent; border-color: rgba(255,255,255,0.2);">
+                            <i class="fa-solid fa-water"></i> CALM SURFACE
+                        </button>
+                    </div>
+                    <div class="module-display" style="background: #000; cursor: crosshair;" id="wave-container">
+                        <div class="display-overlay-text">FLUID SIMULATION [TOP-DOWN]</div>
+                        <canvas id="waves-canvas" class="simulation-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Navigation Dock -->
+        <nav class="nav-dock">
+            <button class="nav-btn active" onclick="app.switchModule('hero')"><i class="fa-solid fa-house"></i></button>
+            <button class="nav-btn" onclick="app.switchModule('nuclear')"><i class="fa-solid fa-radiation"></i> Nuclear</button>
+            <button class="nav-btn" onclick="app.switchModule('orbital')"><i class="fa-solid fa-globe"></i> Orbital</button>
+            <button class="nav-btn" onclick="app.switchModule('chemistry')"><i class="fa-solid fa-flask"></i> Chemistry</button>
+            <button class="nav-btn" onclick="app.switchModule('optics')"><i class="fa-solid fa-prism"></i> Optics</button>
+            <button class="nav-btn" onclick="app.switchModule('waves')"><i class="fa-solid fa-water"></i> Waves</button>
+        </nav>
+
+    </div>
+
+    <script>
+        /**
+         * PRO LABS - APPLICATION CONTROLLER
+         * Manages state, animations, the 3D background, and experiment logic.
+         */
+        const app = {
+            currentModule: 'hero',
+            
+            init: function() {
+                this.bg3D.init();
+                this.modules.nuclear.init();
+                this.modules.orbital.init();
+                this.modules.chemistry.init();
+                this.modules.optics.init();
+                this.modules.waves.init();
+                
+                // Entrance animations using GSAP
+                gsap.from("header", {y: -50, opacity: 0, duration: 1.2, ease: "expo.out"});
+                gsap.from(".nav-dock", {y: 50, opacity: 0, duration: 1.2, delay: 0.3, ease: "expo.out"});
+                gsap.from("#module-hero", {opacity: 0, scale: 0.9, y: 30, duration: 1.5, delay: 0.2, ease: "expo.out"});
+            },
+
+            switchModule: function(moduleId) {
+                if (this.currentModule === moduleId) return;
+
+                const oldCard = document.getElementById(`module-${this.currentModule}`);
+                const newCard = document.getElementById(`module-${moduleId}`);
+                
+                // Update Dock UI
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                const modulesList = ['hero', 'nuclear', 'orbital', 'chemistry', 'optics', 'waves'];
+                const btnIndex = modulesList.indexOf(moduleId);
+                if(btnIndex > -1) document.querySelectorAll('.nav-btn')[btnIndex].classList.add('active');
+
+                // Crossfade Animation
+                gsap.to(oldCard, {
+                    duration: 0.4,
+                    opacity: 0,
+                    scale: 0.97,
+                    y: -20,
+                    ease: "power2.in",
+                    onComplete: () => {
+                        oldCard.style.display = 'none';
+                        
+                        this.currentModule = moduleId;
+                        newCard.style.display = (moduleId === 'hero') ? 'flex' : 'flex'; // all cards are flex
+                        
+                        // Reset transform before animating in
+                        gsap.set(newCard, {opacity: 0, scale: 0.97, y: 20});
+                        
+                        gsap.to(newCard, {
+                            duration: 0.6,
+                            opacity: 1,
+                            scale: 1,
+                            y: 0,
+                            ease: "elastic.out(1, 0.8)"
+                        });
+                        
+                        // Trigger start methods for simulation loops to save resources when hidden
+                        if(moduleId === 'orbital') this.modules.orbital.start();
+                        if(moduleId === 'chemistry') this.modules.chemistry.start();
+                        if(moduleId === 'optics') this.modules.optics.start();
+                        if(moduleId === 'waves') this.modules.waves.start();
+                    }
+                });
+            },
+
+            resetChem: function() {
+                this.modules.chemistry.reset();
+            },
+
+            /**
+             * 3D BACKGROUND (Three.js)
+             * Creates a liquid glass, slowly morphing orb in the background.
+             */
+            bg3D: {
+                scene: null, camera: null, renderer: null,
+                blob: null, mouse: { x: 0, y: 0 },
+                clock: null,
+
+                init: function() {
+                    const container = document.getElementById('canvas-container');
+                    
+                    this.scene = new THREE.Scene();
+                    this.clock = new THREE.Clock();
+
+                    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                    this.camera.position.z = 15;
+
+                    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // optimize performance
+                    container.appendChild(this.renderer.domElement);
+
+                    // Lights for Glassy look
+                    const ambientLight = new THREE.AmbientLight(0x0f172a, 2); // slate dark
+                    this.scene.add(ambientLight);
+                    
+                    const light1 = new THREE.DirectionalLight(0x00f3ff, 3);
+                    light1.position.set(5, 5, 5);
+                    this.scene.add(light1);
+
+                    const light2 = new THREE.DirectionalLight(0xd946ef, 3);
+                    light2.position.set(-5, -5, 2);
+                    this.scene.add(light2);
+
+                    const light3 = new THREE.PointLight(0x8b5cf6, 5, 20);
+                    light3.position.set(0, 0, 0);
+                    this.scene.add(light3);
+
+                    // Liquid Glass Geometry & Material
+                    // Using Icosahedron for uniform vertex distribution
+                    const geometry = new THREE.IcosahedronGeometry(6, 32); 
+                    
+                    // Save original positions for vertex displacement
+                    geometry.userData.originalPositions = geometry.attributes.position.array.slice();
+
+                    const material = new THREE.MeshPhysicalMaterial({
+                        color: 0x1e293b,
+                        metalness: 0.2,
+                        roughness: 0.1,
+                        transmission: 0.8, // glass effect
+                        thickness: 1.5,
+                        clearcoat: 1.0,
+                        clearcoatRoughness: 0.1,
+                        wireframe: false,
+                        transparent: true,
+                        opacity: 0.5
+                    });
+
+                    this.blob = new THREE.Mesh(geometry, material);
+                    this.scene.add(this.blob);
+
+                    // Floating Particles
+                    const particlesGeo = new THREE.BufferGeometry();
+                    const particlesCount = 300;
+                    const posArray = new Float32Array(particlesCount * 3);
+                    for(let i=0; i<particlesCount * 3; i++) {
+                        posArray[i] = (Math.random() - 0.5) * 40;
+                    }
+                    particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+                    const particlesMat = new THREE.PointsMaterial({ size: 0.08, color: 0x8b5cf6, transparent:true, opacity:0.4, blending: THREE.AdditiveBlending });
+                    this.particles = new THREE.Points(particlesGeo, particlesMat);
+                    this.scene.add(this.particles);
+
+                    // Listeners
+                    document.addEventListener('mousemove', (e) => {
+                        this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                        this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    });
+
+                    window.addEventListener('resize', () => {
+                        this.camera.aspect = window.innerWidth / window.innerHeight;
+                        this.camera.updateProjectionMatrix();
+                        this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    });
+
+                    this.animate();
+                },
+
+                animate: function() {
+                    requestAnimationFrame(() => this.animate());
+
+                    const time = this.clock.getElapsedTime();
+
+                    // Camera Parallax
+                    this.camera.position.x += (this.mouse.x * 1.5 - this.camera.position.x) * 0.02;
+                    this.camera.position.y += (this.mouse.y * 1.5 - this.camera.position.y) * 0.02;
+                    this.camera.lookAt(this.scene.position);
+
+                    // Liquid Vertex Displacement (Wobbly Blob)
+                    if(this.blob) {
+                        this.blob.rotation.y = time * 0.1;
+                        this.blob.rotation.z = time * 0.05;
+
+                        const positionAttribute = this.blob.geometry.attributes.position;
+                        const originalPositions = this.blob.geometry.userData.originalPositions;
+                        const vertex = new THREE.Vector3();
+
+                        for (let i = 0; i < positionAttribute.count; i++) {
+                            vertex.fromArray(originalPositions, i * 3);
+                            
+                            // Simple sine wave displacement based on position and time
+                            const displacement = Math.sin(vertex.x * 0.5 + time) * 0.2 + 
+                                                 Math.sin(vertex.y * 0.5 + time * 1.2) * 0.2 + 
+                                                 Math.sin(vertex.z * 0.5 + time * 0.8) * 0.2;
+                            
+                            vertex.normalize().multiplyScalar(6 + displacement); // Base radius 6
+                            positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                        }
+                        positionAttribute.needsUpdate = true;
+                        this.blob.geometry.computeVertexNormals(); // Crucial for lighting to look right after vertex shift
+                    }
+
+                    if(this.particles) {
+                        this.particles.rotation.y = time * 0.05;
+                    }
+
+                    this.renderer.render(this.scene, this.camera);
+                }
+            },
+
+            modules: {
+                /* --- MODULE A: NUCLEAR THERMODYNAMICS --- */
+                nuclear: {
+                    slider: null, rod: null, output: null, temp: null, status: null, container: null, cherenkov: null,
+                    init: function() {
+                        this.slider = document.getElementById('rod-slider');
+                        this.rod = document.getElementById('fuel-rod');
+                        this.output = document.getElementById('nuclear-output');
+                        this.temp = document.getElementById('nuclear-temp');
+                        this.status = document.getElementById('nuc-status');
+                        this.container = document.querySelector('#module-nuclear .module-display');
+                        this.cherenkov = document.getElementById('cherenkov-glow');
+
+                        this.slider.addEventListener('input', (e) => {
+                            const val = parseInt(e.target.value); // 100 = inserted, 0 = withdrawn
+                            
+                            // Visual Rod height (0% height visually when withdrawn, 100% when inserted)
+                            this.rod.style.height = val + '%'; 
+                            
+                            // Logic & Math mapping
+                            // Power increases exponentially as rods withdraw
+                            const inverse = 100 - val; 
+                            const power = Math.floor(Math.pow(inverse, 1.5) * 0.5);
+                            const temperature = 300 + Math.floor(Math.pow(inverse, 1.8) * 0.2);
+                            
+                            this.output.innerText = power;
+                            this.temp.innerText = temperature;
+
+                            // Dynamic Styling based on danger level
+                            if(val < 15) { // Critical
+                                this.status.innerText = "CRITICAL: MELTDOWN IMMINENT";
+                                this.status.style.color = "var(--danger-red)";
+                                this.temp.style.color = "var(--danger-red)";
+                                this.container.classList.add('shake-intense');
+                                this.cherenkov.style.background = "linear-gradient(0deg, rgba(239, 68, 68, 0.6) 0%, transparent 100%)";
+                                this.rod.style.background = "var(--danger-red)";
+                                this.rod.style.boxShadow = "0 0 50px var(--danger-red)";
+                            } else if (val < 50) { // Warning
+                                this.status.innerText = "WARNING: HIGH YIELD";
+                                this.status.style.color = "var(--warning-yellow)";
+                                this.temp.style.color = "var(--warning-yellow)";
+                                this.container.classList.remove('shake-intense');
+                                this.cherenkov.style.background = "linear-gradient(0deg, rgba(245, 158, 11, 0.5) 0%, transparent 100%)";
+                                this.rod.style.background = "var(--warning-yellow)";
+                                this.rod.style.boxShadow = "0 0 30px var(--warning-yellow)";
+                            } else { // Stable
+                                this.status.innerText = "STABLE";
+                                this.status.style.color = "var(--safe-green)";
+                                this.temp.style.color = "#f8fafc";
+                                this.container.classList.remove('shake-intense');
+                                this.cherenkov.style.background = "linear-gradient(0deg, rgba(0, 243, 255, 0.3) 0%, transparent 100%)";
+                                this.rod.style.background = "linear-gradient(180deg, var(--safe-green) 0%, #047857 100%)";
+                                this.rod.style.boxShadow = "0 0 30px var(--safe-green)";
+                            }
+                        });
+                    }
+                },
+
+                /* --- MODULE B: ORBITAL MECHANICS --- */
+                orbital: {
+                    canvas: null, ctx: null, slider: null,
+                    sunMass: 30, planets: [], animId: null,
+
+                    init: function() {
+                        this.canvas = document.getElementById('orbit-canvas');
+                        this.ctx = this.canvas.getContext('2d');
+                        this.slider = document.getElementById('mass-slider');
+
+                        // Two planets for comparison
+                        this.planets = [
+                            { r: 80, angle: 0, color: '#00f3ff', size: 6, vEl: document.getElementById('orb-v1') },
+                            { r: 160, angle: Math.PI, color: '#d946ef', size: 4, vEl: document.getElementById('orb-v2') }
+                        ];
+
+                        this.slider.addEventListener('input', (e) => {
+                            this.sunMass = parseInt(e.target.value);
+                            document.getElementById('orb-mass').innerText = this.sunMass;
+                        });
+
+                        this.resize();
+                        window.addEventListener('resize', () => this.resize());
+                    },
+                    
+                    resize: function() {
+                        if(this.canvas.parentElement) {
+                            this.canvas.width = this.canvas.parentElement.clientWidth;
+                            this.canvas.height = this.canvas.parentElement.clientHeight;
+                        }
+                    },
+
+                    start: function() {
+                        if(this.animId) cancelAnimationFrame(this.animId);
+                        this.resize();
+                        this.draw();
+                    },
+
+                    draw: function() {
+                        if(app.currentModule !== 'orbital') return;
+
+                        const w = this.canvas.width;
+                        const h = this.canvas.height;
+                        const ctx = this.ctx;
+                        const cx = w/2;
+                        const cy = h/2;
+
+                        // Soft clear for trails
+                        ctx.fillStyle = 'rgba(0,0,0,0.15)'; 
+                        ctx.fillRect(0,0,w,h);
+
+                        // Draw Central Mass (Sun)
+                        const sunVisualSize = 10 + (this.sunMass / 4);
+                        ctx.beginPath();
+                        ctx.fillStyle = '#f59e0b';
+                        ctx.shadowBlur = this.sunMass;
+                        ctx.shadowColor = '#f59e0b';
+                        ctx.arc(cx, cy, sunVisualSize, 0, Math.PI*2);
+                        ctx.fill();
+                        ctx.shadowBlur = 0; // Reset
+
+                        // Update & Draw Planets
+                        this.planets.forEach((p, index) => {
+                            // Velocity v ∝ sqrt(M/r)
+                            const velocity = Math.sqrt(this.sunMass / p.r);
+                            const angularVelocity = velocity / p.r * 50; // Arbitrary multiplier for visual speed
+                            
+                            p.angle += angularVelocity;
+                            
+                            // Update UI data
+                            p.vEl.innerText = (velocity * 10).toFixed(2); // Fake scale for UI
+
+                            // Orbit Path
+                            ctx.beginPath();
+                            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                            ctx.lineWidth = 1;
+                            ctx.arc(cx, cy, p.r, 0, Math.PI*2);
+                            ctx.stroke();
+
+                            // Planet
+                            const px = cx + Math.cos(p.angle) * p.r;
+                            const py = cy + Math.sin(p.angle) * p.r;
+
+                            ctx.beginPath();
+                            ctx.fillStyle = p.color;
+                            ctx.shadowBlur = 10;
+                            ctx.shadowColor = p.color;
+                            ctx.arc(px, py, p.size, 0, Math.PI*2);
+                            ctx.fill();
+                            ctx.shadowBlur = 0;
+                        });
+
+                        this.animId = requestAnimationFrame(() => this.draw());
+                    }
+                },
+
+                /* --- MODULE C: CHEMISTRY (PARTICLE SIM) --- */
+                chemistry: {
+                    canvas: null, ctx: null,
+                    hasSodium: false, hasWater: false,
+                    animId: null, particles: [], bubbles: [],
+                    
+                    init: function() {
+                        this.canvas = document.getElementById('chem-canvas');
+                        this.ctx = this.canvas.getContext('2d');
+                        
+                        document.getElementById('btn-na').addEventListener('click', () => {
+                            if(this.hasSodium) return;
+                            this.hasSodium = true;
+                            this.updateStatus("SODIUM INTRODUCED. AWAITING REAGENT.", "var(--warning-yellow)");
+                        });
+
+                        document.getElementById('btn-h2o').addEventListener('click', () => {
+                            if(this.hasWater) return;
+                            this.hasWater = true;
+                            if(this.hasSodium) {
+                                this.updateStatus("EXOTHERMIC REACTION!", "var(--danger-red)");
+                                this.explode();
+                            } else {
+                                this.updateStatus("WATER ADDED. NO REACTION.", "var(--primary-cyan)");
+                            }
+                        });
+
+                        this.resize();
+                        window.addEventListener('resize', () => this.resize());
+                    },
+                    
+                    updateStatus: function(text, color) {
+                        const el = document.getElementById('chem-status');
+                        el.innerText = "CHAMBER: " + text;
+                        el.style.color = color;
+                    },
+
+                    resize: function() {
+                        if(this.canvas.parentElement) {
+                            this.canvas.width = this.canvas.parentElement.clientWidth;
+                            this.canvas.height = this.canvas.parentElement.clientHeight;
+                        }
+                    },
+
+                    reset: function() {
+                        this.hasSodium = false;
+                        this.hasWater = false;
+                        this.particles = [];
+                        this.bubbles = [];
+                        this.updateStatus("PURGED. READY.", "var(--safe-green)");
+                    },
+
+                    explode: function() {
+                        const cx = this.canvas.width / 2;
+                        const cy = this.canvas.height / 2 + 50; // bottom of beaker
+                        
+                        // Fire/Sparks
+                        for(let i=0; i<150; i++) {
+                            this.particles.push({
+                                x: cx, y: cy,
+                                vx: (Math.random() - 0.5) * 20,
+                                vy: (Math.random() - 1.0) * 15, // mostly upward
+                                life: 1.0,
+                                decay: 0.01 + Math.random() * 0.02,
+                                color: Math.random() > 0.3 ? '#f59e0b' : (Math.random() > 0.5 ? '#ef4444' : '#fff')
+                            });
+                        }
+                    },
+
+                    start: function() {
+                        if(this.animId) cancelAnimationFrame(this.animId);
+                        this.resize();
+                        this.draw();
+                    },
+
+                    draw: function() {
+                        if(app.currentModule !== 'chemistry') return;
+
+                        const w = this.canvas.width;
+                        const h = this.canvas.height;
+                        const ctx = this.ctx;
+                        const bx = w/2 - 75; // beaker x
+                        const by = h/2 - 50; // beaker y
+                        const bw = 150;
+                        const bh = 150;
+
+                        ctx.clearRect(0, 0, w, h);
+
+                        // Draw Beaker Glass
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                        ctx.fillRect(bx, by, bw, bh);
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.moveTo(bx, by); ctx.lineTo(bx, by+bh); // left
+                        ctx.lineTo(bx+bw, by+bh); // bottom
+                        ctx.lineTo(bx+bw, by); // right
+                        ctx.stroke();
+
+                        // Draw Water
+                        if(this.hasWater) {
+                            ctx.fillStyle = 'rgba(0, 243, 255, 0.3)';
+                            ctx.fillRect(bx, by + 50, bw, bh - 50);
+                            
+                            // Generate bubbles if reacting
+                            if(this.hasSodium && Math.random() > 0.5) {
+                                this.bubbles.push({
+                                    x: bx + Math.random()*bw,
+                                    y: by + bh,
+                                    size: Math.random() * 4 + 1,
+                                    vy: -Math.random() * 3 - 1
+                                });
+                            }
+                        }
+
+                        // Draw Bubbles
+                        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                        for(let i=this.bubbles.length-1; i>=0; i--) {
+                            let b = this.bubbles[i];
+                            b.y += b.vy;
+                            b.x += Math.sin(b.y*0.1); // wiggle
+                            ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI*2); ctx.fill();
+                            if(b.y < by+50) this.bubbles.splice(i, 1);
+                        }
+
+                        // Draw Sodium Cube
+                        if(this.hasSodium && this.particles.length === 0) {
+                            ctx.fillStyle = '#cbd5e1'; // metallic grey
+                            let sy = this.hasWater ? by + bh - 20 : by + bh - 20; // rests at bottom
+                            ctx.fillRect(w/2 - 10, sy, 20, 20);
+                            // Highlight
+                            ctx.fillStyle = '#fff';
+                            ctx.fillRect(w/2 - 10, sy, 20, 2);
+                        }
+
+                        // Explosion Particles
+                        ctx.globalCompositeOperation = "lighter";
+                        for(let i=this.particles.length-1; i>=0; i--) {
+                            let p = this.particles[i];
+                            p.x += p.vx;
+                            p.y += p.vy;
+                            p.vy += 0.4; // Gravity
+                            p.life -= p.decay;
+
+                            // Floor bounce
+                            if(p.y > h - 20) {
+                                p.y = h - 20;
+                                p.vy *= -0.5;
+                            }
+
+                            ctx.globalAlpha = Math.max(0, p.life);
+                            ctx.fillStyle = p.color;
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, 4 * p.life, 0, Math.PI*2);
+                            ctx.fill();
+                            
+                            if(p.life <= 0) this.particles.splice(i, 1);
+                        }
+                        ctx.globalCompositeOperation = "source-over";
+                        ctx.globalAlpha = 1.0;
+
+                        this.animId = requestAnimationFrame(() => this.draw());
+                    }
+                },
+
+                /* --- MODULE D: OPTICS (PRISM DISPERSION) --- */
+                optics: {
+                    canvas: null, ctx: null, slider: null,
+                    angle: 0, animId: null,
+
+                    init: function() {
+                        this.canvas = document.getElementById('optics-canvas');
+                        this.ctx = this.canvas.getContext('2d');
+                        this.slider = document.getElementById('optics-slider');
+
+                        this.slider.addEventListener('input', (e) => {
+                            this.angle = parseInt(e.target.value);
+                            document.getElementById('opt-angle').innerText = this.angle;
+                        });
+
+                        this.resize();
+                        window.addEventListener('resize', () => this.resize());
+                    },
+                    
+                    resize: function() {
+                        if(this.canvas.parentElement) {
+                            this.canvas.width = this.canvas.parentElement.clientWidth;
+                            this.canvas.height = this.canvas.parentElement.clientHeight;
+                        }
+                    },
+
+                    start: function() {
+                        if(this.animId) cancelAnimationFrame(this.animId);
+                        this.resize();
+                        this.draw();
+                    },
+
+                    draw: function() {
+                        if(app.currentModule !== 'optics') return;
+                        const w = this.canvas.width;
+                        const h = this.canvas.height;
+                        const ctx = this.ctx;
+                        const cx = w/2;
+                        const cy = h/2;
+
+                        ctx.clearRect(0,0,w,h);
+
+                        // Abstraction: 
+                        // Draw Prism
+                        ctx.save();
+                        ctx.translate(cx, cy);
+                        ctx.rotate(this.angle * Math.PI / 180);
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(0, -80);
+                        ctx.lineTo(80, 80);
+                        ctx.lineTo(-80, 80);
+                        ctx.closePath();
+                        
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                        ctx.fill();
+                        ctx.strokeStyle = 'rgba(0, 243, 255, 0.5)';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        ctx.restore();
+
+                        // Incoming White Laser Beam
+                        ctx.beginPath();
+                        ctx.moveTo(0, cy);
+                        ctx.lineTo(cx - 30, cy); // Hits prism left face
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 4;
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = '#fff';
+                        ctx.stroke();
+                        ctx.shadowBlur = 0;
+
+                        // Calculate Dispersion based on rotation angle
+                        // This is heavily abstracted for visual appeal rather than strict physics
+                        ctx.globalCompositeOperation = "screen";
+                        const colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#8f00ff'];
+                        
+                        const baseExitY = cy;
+                        const spread = 40 + Math.abs(this.angle); // angle increases spread
+                        
+                        colors.forEach((color, idx) => {
+                            // Dispersion angle offset
+                            const offsetAngle = (idx - 3) * (spread / 100) + (this.angle * 0.02);
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(cx + 30, cy); // Exit point abstraction
+                            
+                            // Calculate end point
+                            const endX = w;
+                            const dx = endX - (cx + 30);
+                            const endY = cy + Math.tan(offsetAngle) * dx;
+
+                            ctx.lineTo(endX, endY);
+                            ctx.strokeStyle = color;
+                            ctx.lineWidth = 3;
+                            ctx.stroke();
+                        });
+                        ctx.globalCompositeOperation = "source-over";
+
+                        this.animId = requestAnimationFrame(() => this.draw());
+                    }
+                },
+
+                /* --- MODULE E: WAVES (INTERFERENCE) --- */
+                waves: {
+                    canvas: null, ctx: null,
+                    ripples: [], animId: null,
+
+                    init: function() {
+                        this.canvas = document.getElementById('waves-canvas');
+                        this.ctx = this.canvas.getContext('2d');
+                        
+                        // Add ripples on click
+                        this.canvas.addEventListener('mousedown', (e) => {
+                            const rect = this.canvas.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const y = e.clientY - rect.top;
+                            this.ripples.push({ x: x, y: y, radius: 0, maxRadius: 300, life: 1.0 });
+                        });
+
+                        this.resize();
+                        window.addEventListener('resize', () => this.resize());
+                    },
+                    
+                    clear: function() {
+                        this.ripples = [];
+                    },
+
+                    resize: function() {
+                        if(this.canvas.parentElement) {
+                            this.canvas.width = this.canvas.parentElement.clientWidth;
+                            this.canvas.height = this.canvas.parentElement.clientHeight;
+                        }
+                    },
+
+                    start: function() {
+                        if(this.animId) cancelAnimationFrame(this.animId);
+                        this.resize();
+                        this.draw();
+                    },
+
+                    draw: function() {
+                        if(app.currentModule !== 'waves') return;
+                        const w = this.canvas.width;
+                        const h = this.canvas.height;
+                        const ctx = this.ctx;
+
+                        ctx.fillStyle = 'rgba(0,0,0,0.2)'; // fade out old frames for smooth motion
+                        ctx.fillRect(0,0,w,h);
+
+                        // Draw Ripples
+                        ctx.globalCompositeOperation = "lighter"; // Creates the interference bright spots
+                        
+                        for(let i=this.ripples.length-1; i>=0; i--) {
+                            let r = this.ripples[i];
+                            r.radius += 2; // speed of wave
+                            r.life -= 0.005; // fade out
+
+                            if(r.life <= 0) {
+                                this.ripples.splice(i, 1);
+                                continue;
+                            }
+
+                            ctx.beginPath();
+                            ctx.arc(r.x, r.y, r.radius, 0, Math.PI*2);
+                            
+                            // Multi-ring effect
+                            ctx.lineWidth = 2;
+                            ctx.strokeStyle = `rgba(0, 243, 255, ${r.life * 0.5})`;
+                            ctx.stroke();
+                            
+                            if(r.radius > 20) {
+                                ctx.beginPath();
+                                ctx.arc(r.x, r.y, r.radius - 20, 0, Math.PI*2);
+                                ctx.strokeStyle = `rgba(139, 92, 246, ${r.life * 0.3})`;
+                                ctx.stroke();
+                            }
+                        }
+                        ctx.globalCompositeOperation = "source-over";
+
+                        // Draw Grid to feel more like a lab floor
+                        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        for(let i=0; i<w; i+=40) { ctx.moveTo(i,0); ctx.lineTo(i,h); }
+                        for(let j=0; j<h; j+=40) { ctx.moveTo(0,j); ctx.lineTo(w,j); }
+                        ctx.stroke();
+
+                        this.animId = requestAnimationFrame(() => this.draw());
+                    }
+                }
+            }
+        };
+
+        window.onload = function() {
+            app.init();
+        };
+
+    </script>
+</body>
+</html>
