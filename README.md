@@ -1,5 +1,5 @@
-# DOCTYPE
-DOCTYPE pro lab
+#pro lab
+ 
 # 🧪 Pro Labs | Advanced Virtual Science Interface
 
 Pro Labs is a next-generation interactive physics and chemistry simulation engine contained within a single HTML file[cite: 2]. It features a modern glassmorphism UI, a real-time 3D ambient background, and multiple interactive science modules driven by HTML5 Canvas and JavaScript[cite: 2].
